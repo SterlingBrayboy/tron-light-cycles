@@ -1,0 +1,833 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TRON · Light Cycles</title>
+<style>
+  :root {
+    --cyan: #00f0ff;
+    --orange: #ff7a18;
+    --bg: #02060a;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    height: 100%;
+    background: radial-gradient(ellipse at center, #061018 0%, #02060a 70%, #000 100%);
+    color: #cfefff;
+    font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    overflow: hidden;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  #wrap {
+    position: relative;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+  }
+  h1 {
+    font-weight: 800;
+    letter-spacing: 0.5em;
+    font-size: clamp(22px, 4.5vw, 46px);
+    color: #fff;
+    text-shadow: 0 0 8px var(--cyan), 0 0 22px var(--cyan), 0 0 44px rgba(0,240,255,.6);
+    text-indent: 0.5em;
+  }
+  .sub {
+    letter-spacing: 0.35em;
+    font-size: clamp(9px, 1.4vw, 12px);
+    color: #5fbfd6;
+    text-transform: uppercase;
+  }
+  #hud {
+    display: flex;
+    gap: 40px;
+    align-items: center;
+    font-variant-numeric: tabular-nums;
+  }
+  .score { text-align: center; line-height: 1.2; }
+  .score .label {
+    font-size: 11px; letter-spacing: 0.25em;
+    text-transform: uppercase; opacity: 0.7;
+  }
+  .score .val { font-size: 34px; font-weight: 800; }
+  .p1 { color: var(--cyan); text-shadow: 0 0 12px var(--cyan); }
+  .p2 { color: var(--orange); text-shadow: 0 0 12px var(--orange); }
+  #stage {
+    position: relative;
+    border-radius: 6px;
+    box-shadow: 0 0 0 1px rgba(0,240,255,.25), 0 0 40px rgba(0,240,255,.12), inset 0 0 80px rgba(0,0,0,.6);
+  }
+  canvas {
+    display: block;
+    border-radius: 6px;
+    background:
+      linear-gradient(rgba(0,240,255,.05) 1px, transparent 1px) 0 0 / 100% 32px,
+      linear-gradient(90deg, rgba(0,240,255,.05) 1px, transparent 1px) 0 0 / 32px 100%,
+      radial-gradient(ellipse at center, #03141c 0%, #020a0f 100%);
+  }
+  #overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 18px;
+    background: rgba(2,8,12,.78);
+    backdrop-filter: blur(2px);
+    border-radius: 6px;
+    text-align: center;
+    padding: 20px;
+    transition: opacity .25s;
+  }
+  #overlay.hidden { opacity: 0; pointer-events: none; }
+  #overlay h2 {
+    font-size: clamp(20px, 3.5vw, 34px);
+    letter-spacing: 0.15em;
+    color: #fff;
+    text-shadow: 0 0 14px var(--cyan);
+  }
+  #overlay p { max-width: 460px; line-height: 1.7; color: #9fd6e6; font-size: 14px; }
+  kbd {
+    display: inline-block;
+    background: rgba(0,240,255,.1);
+    border: 1px solid rgba(0,240,255,.4);
+    border-radius: 4px;
+    padding: 2px 8px;
+    font-family: monospace;
+    color: var(--cyan);
+    box-shadow: 0 0 8px rgba(0,240,255,.2);
+  }
+  .btnrow { display: flex; gap: 14px; flex-wrap: wrap; justify-content: center; }
+  button {
+    font-family: inherit; font-weight: 700;
+    letter-spacing: 0.15em; text-transform: uppercase; font-size: 13px;
+    color: var(--cyan);
+    background: rgba(0,240,255,.06);
+    border: 1px solid var(--cyan);
+    border-radius: 4px;
+    padding: 12px 22px;
+    cursor: pointer;
+    transition: all .15s;
+    box-shadow: 0 0 12px rgba(0,240,255,.15);
+  }
+  button:hover { background: rgba(0,240,255,.18); box-shadow: 0 0 22px rgba(0,240,255,.4); transform: translateY(-1px); }
+  button.alt { color: var(--orange); border-color: var(--orange); background: rgba(255,122,24,.06); box-shadow: 0 0 12px rgba(255,122,24,.15); }
+  button.alt:hover { background: rgba(255,122,24,.18); box-shadow: 0 0 22px rgba(255,122,24,.4); }
+  .controls {
+    display: flex; gap: 36px; font-size: 12px; color: #8fc4d6;
+    flex-wrap: wrap; justify-content: center;
+  }
+  .controls div { line-height: 1.9; }
+  .controls .who { font-weight: 700; letter-spacing: 0.2em; }
+  .hint { font-size: 11px; letter-spacing: 0.2em; color: #4a7e8e; text-transform: uppercase; }
+  /* audio indicator */
+  #audio {
+    position: absolute;
+    top: 10px; right: 12px;
+    z-index: 5;
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    color: var(--cyan);
+    background: rgba(0,240,255,.08);
+    border: 1px solid rgba(0,240,255,.35);
+    border-radius: 4px;
+    padding: 5px 9px;
+    cursor: pointer;
+    text-transform: uppercase;
+    box-shadow: 0 0 10px rgba(0,240,255,.15);
+    transition: all .15s;
+  }
+  #audio:hover { background: rgba(0,240,255,.18); }
+  #audio.muted { color: #6a8a96; border-color: rgba(120,150,160,.35); background: rgba(120,150,160,.06); box-shadow: none; }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div style="text-align:center">
+    <h1>TRON</h1>
+    <div class="sub">— Light Cycles —</div>
+  </div>
+
+  <div id="hud">
+    <div class="score"><div class="label p1">Cyan</div><div class="val p1" id="s1">0</div></div>
+    <div class="score"><div class="label" style="opacity:.5">Round</div><div class="val" id="round" style="font-size:24px">1</div></div>
+    <div class="score"><div class="label p2" id="p2label">Orange</div><div class="val p2" id="s2">0</div></div>
+  </div>
+
+  <div id="stage">
+    <canvas id="game" width="720" height="540"></canvas>
+    <div id="audio" title="Toggle sound (M)">♪ Sound On</div>
+    <div id="overlay">
+      <h2 id="ovTitle">READY?</h2>
+      <p id="ovText">Steer your light cycle, leave a wall of light behind you, and force your opponent to crash. Don't hit the walls, the trails, or yourself.</p>
+      <div class="controls">
+        <div><span class="who p1">CYAN</span><br>W A S D</div>
+        <div><span class="who p2">ORANGE</span><br>↑ ← ↓ →</div>
+      </div>
+      <div class="btnrow">
+        <button id="btnSolo">Play vs CPU</button>
+        <button id="btn2p" class="alt">2 Players</button>
+      </div>
+      <div class="hint" id="ovHint">First to 5 wins · P pause · M mute</div>
+    </div>
+  </div>
+  <div class="hint">Speed climbs each round · sound on first click</div>
+</div>
+
+<script>
+"use strict";
+(() => {
+
+/* ============================================================
+ *  AUDIO  — fully procedural Web Audio engine (no asset files)
+ * ============================================================ */
+const Audio = (() => {
+  let ctx = null;
+  let master = null;
+  let musicGain = null;
+  let sfxGain = null;
+  let muted = false;
+
+  // engine hum nodes (persist during play)
+  let hum = null;        // { osc, sub, gain }
+  // music scheduler
+  let musicOn = false;
+  let nextNoteTime = 0;
+  let step16 = 0;
+  let schedulerId = null;
+  const LOOKAHEAD = 0.025;     // s between scheduler ticks
+  const SCHEDULE_AHEAD = 0.12; // s to schedule into the future
+
+  // simple 16-step sequence (semitone offsets from a root)
+  const BASE = 55;             // A1
+  const BASSLINE = [0, 0, 7, 0, 5, 0, 7, 3, 0, 0, 7, 10, 5, 7, 3, 0];
+  const ARP     = [12, 19, 24, 19, 17, 24, 19, 17, 15, 22, 19, 15, 17, 24, 22, 19];
+  let bpm = 132;
+
+  function midiHz(semis) { return BASE * Math.pow(2, semis / 12); }
+
+  function ensure() {
+    if (ctx) return true;
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return false;
+    ctx = new AC();
+    master = ctx.createGain();
+    master.gain.value = muted ? 0 : 0.9;
+    master.connect(ctx.destination);
+
+    musicGain = ctx.createGain();
+    musicGain.gain.value = 0.32;
+    musicGain.connect(master);
+
+    sfxGain = ctx.createGain();
+    sfxGain.gain.value = 0.9;
+    sfxGain.connect(master);
+    return true;
+  }
+
+  // call from a user gesture
+  function unlock() {
+    if (!ensure()) return;
+    if (ctx.state === "suspended") ctx.resume();
+  }
+
+  function now() { return ctx ? ctx.currentTime : 0; }
+
+  /* ---- one-shot SFX ---- */
+  function blip(freq = 660, dur = 0.06, type = "square", vol = 0.25) {
+    if (!ctx) return;
+    const t = now();
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.type = type;
+    o.frequency.setValueAtTime(freq, t);
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(vol, t + 0.005);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(sfxGain);
+    o.start(t); o.stop(t + dur + 0.02);
+  }
+
+  function turn() { blip(880, 0.05, "square", 0.18); }
+
+  function countdownTick(go) {
+    if (go) {
+      blip(1320, 0.18, "sawtooth", 0.32);
+      blip(660, 0.18, "square", 0.18);
+    } else {
+      blip(520, 0.10, "square", 0.22);
+    }
+  }
+
+  function crash() {
+    if (!ctx) return;
+    const t = now();
+    // noise burst
+    const len = Math.floor(ctx.sampleRate * 0.5);
+    const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / len);
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    const lp = ctx.createBiquadFilter();
+    lp.type = "lowpass";
+    lp.frequency.setValueAtTime(2200, t);
+    lp.frequency.exponentialRampToValueAtTime(180, t + 0.45);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.6, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.5);
+    src.connect(lp); lp.connect(g); g.connect(sfxGain);
+    src.start(t); src.stop(t + 0.5);
+    // descending zap
+    const o = ctx.createOscillator();
+    const og = ctx.createGain();
+    o.type = "sawtooth";
+    o.frequency.setValueAtTime(420, t);
+    o.frequency.exponentialRampToValueAtTime(40, t + 0.4);
+    og.gain.setValueAtTime(0.3, t);
+    og.gain.exponentialRampToValueAtTime(0.0001, t + 0.4);
+    o.connect(og); og.connect(sfxGain);
+    o.start(t); o.stop(t + 0.42);
+  }
+
+  function fanfare(win) {
+    if (!ctx) return;
+    const seq = win ? [0, 4, 7, 12] : [0, -2, -4, -7];
+    seq.forEach((s, i) => {
+      setTimeout(() => blip(midiHz(24 + s), 0.18, "triangle", 0.28), i * 120);
+    });
+  }
+
+  /* ---- engine hum (continuous) ---- */
+  function startHum() {
+    if (!ctx || hum) return;
+    const t = now();
+    const osc = ctx.createOscillator();
+    const sub = ctx.createOscillator();
+    const g = ctx.createGain();
+    osc.type = "sawtooth";
+    sub.type = "sine";
+    osc.frequency.value = 90;
+    sub.frequency.value = 45;
+    const lp = ctx.createBiquadFilter();
+    lp.type = "lowpass";
+    lp.frequency.value = 600;
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(0.12, t + 0.15);
+    osc.connect(lp); sub.connect(lp); lp.connect(g); g.connect(sfxGain);
+    osc.start(t); sub.start(t);
+    hum = { osc, sub, gain: g };
+  }
+
+  function setHumSpeed(speed) {
+    if (!ctx || !hum) return;
+    const f = 80 + speed * 5.5;
+    hum.osc.frequency.setTargetAtTime(f, now(), 0.08);
+    hum.sub.frequency.setTargetAtTime(f / 2, now(), 0.08);
+  }
+
+  function stopHum() {
+    if (!ctx || !hum) return;
+    const t = now();
+    const h = hum; hum = null;
+    h.gain.gain.cancelScheduledValues(t);
+    h.gain.gain.setValueAtTime(h.gain.gain.value, t);
+    h.gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.18);
+    h.osc.stop(t + 0.2); h.sub.stop(t + 0.2);
+  }
+
+  /* ---- background music (lookahead scheduler) ---- */
+  function playNote(time, semis, dur, type, vol, dest) {
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.type = type;
+    o.frequency.value = midiHz(semis);
+    g.gain.setValueAtTime(0, time);
+    g.gain.linearRampToValueAtTime(vol, time + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, time + dur);
+    o.connect(g); g.connect(dest);
+    o.start(time); o.stop(time + dur + 0.02);
+  }
+
+  function scheduler() {
+    const spb = 60 / bpm;        // sec per beat
+    const sps = spb / 4;         // sec per 16th step
+    while (nextNoteTime < now() + SCHEDULE_AHEAD) {
+      const s = step16 % 16;
+      // bass on every 16th, accented
+      playNote(nextNoteTime, BASSLINE[s], sps * 0.9, "square", 0.22, musicGain);
+      // arp on the offbeats for movement
+      if (s % 2 === 0) playNote(nextNoteTime, ARP[s], sps * 1.4, "triangle", 0.10, musicGain);
+      // hat-ish tick
+      if (s % 4 === 2) blipMusic(nextNoteTime);
+      nextNoteTime += sps;
+      step16++;
+    }
+  }
+
+  function blipMusic(time) {
+    const len = Math.floor(ctx.sampleRate * 0.03);
+    const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / len);
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    const hp = ctx.createBiquadFilter();
+    hp.type = "highpass"; hp.frequency.value = 6000;
+    const g = ctx.createGain(); g.gain.value = 0.06;
+    src.connect(hp); hp.connect(g); g.connect(musicGain);
+    src.start(time); src.stop(time + 0.03);
+  }
+
+  function startMusic(roundSpeed) {
+    if (!ctx || musicOn) return;
+    bpm = 120 + (roundSpeed || 0) * 1.2;
+    musicOn = true;
+    step16 = 0;
+    nextNoteTime = now() + 0.05;
+    schedulerId = setInterval(scheduler, LOOKAHEAD * 1000);
+  }
+
+  function stopMusic() {
+    musicOn = false;
+    if (schedulerId) { clearInterval(schedulerId); schedulerId = null; }
+  }
+
+  function toggleMute() {
+    muted = !muted;
+    if (master) master.gain.setTargetAtTime(muted ? 0 : 0.9, now(), 0.02);
+    return muted;
+  }
+
+  function isMuted() { return muted; }
+
+  return {
+    unlock, isMuted, toggleMute,
+    turn, countdownTick, crash, fanfare,
+    startHum, setHumSpeed, stopHum,
+    startMusic, stopMusic,
+  };
+})();
+
+
+/* ============================================================
+ *  GAME
+ * ============================================================ */
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+const CELL = 6;
+const COLS = canvas.width / CELL;   // 120
+const ROWS = canvas.height / CELL;  // 90
+
+const COL = {
+  1: { core: "#aef6ff", glow: "#00f0ff", dim: "rgba(0,240,255,0.28)" },
+  2: { core: "#ffd8b0", glow: "#ff7a18", dim: "rgba(255,122,24,0.28)" },
+};
+
+const DIRS = {
+  up:    { x: 0,  y: -1 },
+  down:  { x: 0,  y: 1 },
+  left:  { x: -1, y: 0 },
+  right: { x: 1,  y: 0 },
+};
+const OPP = { up: "down", down: "up", left: "right", right: "left" };
+
+// --- state ---
+let state = "menu";        // menu | countdown | playing | roundover | paused
+let mode = "cpu";          // cpu | 2p
+let scores = { 1: 0, 2: 0 };
+let round = 1;
+const WIN_SCORE = 5;
+let occupied;              // Uint8Array
+let riders;
+let baseSpeed;             // moves per second
+let acc = 0;
+let lastT = 0;
+let countdownEnd = 0;
+let lastCountNum = 99;     // for one beep per number
+let humStarted = false;
+let particles = [];
+
+const el = {
+  s1: document.getElementById("s1"),
+  s2: document.getElementById("s2"),
+  round: document.getElementById("round"),
+  overlay: document.getElementById("overlay"),
+  title: document.getElementById("ovTitle"),
+  text: document.getElementById("ovText"),
+  hint: document.getElementById("ovHint"),
+  p2label: document.getElementById("p2label"),
+  audio: document.getElementById("audio"),
+};
+
+const idx = (x, y) => y * COLS + x;
+const inBounds = (x, y) => x >= 0 && x < COLS && y >= 0 && y < ROWS;
+
+function makeRider(id, x, y, dir, ai) {
+  return { id, x, y, dir, next: dir, alive: true, ai, trail: [{ x, y }] };
+}
+
+function resetRound() {
+  occupied = new Uint8Array(COLS * ROWS);
+  const midY = Math.floor(ROWS / 2);
+  riders = [
+    makeRider(1, 12, midY, "right", false),
+    makeRider(2, COLS - 13, midY, "left", mode === "cpu"),
+  ];
+  for (const r of riders) occupied[idx(r.x, r.y)] = r.id;
+  baseSpeed = 14 + (round - 1) * 2;
+  acc = 0;
+  particles = [];
+  humStarted = false;
+}
+
+function startMatch(selectedMode) {
+  mode = selectedMode;
+  scores = { 1: 0, 2: 0 };
+  round = 1;
+  el.p2label.textContent = mode === "cpu" ? "CPU" : "Orange";
+  updateHUD();
+  beginRound();
+}
+
+function beginRound() {
+  resetRound();
+  state = "countdown";
+  countdownEnd = performance.now() + 2600;
+  lastCountNum = 99;
+  el.overlay.classList.add("hidden");
+}
+
+function updateHUD() {
+  el.s1.textContent = scores[1];
+  el.s2.textContent = scores[2];
+  el.round.textContent = round;
+}
+
+function showOverlay(title, text, hint) {
+  el.title.textContent = title;
+  el.text.innerHTML = text;
+  if (hint !== undefined) el.hint.innerHTML = hint;
+  el.overlay.classList.remove("hidden");
+}
+
+// --- AI ---
+function aiChoose(rider) {
+  const opp = riders.find(r => r.id !== rider.id);
+  const options = ["up", "down", "left", "right"].filter(d => d !== OPP[rider.dir]);
+
+  function freeSpace(sx, sy, cap) {
+    const seen = new Set();
+    const stack = [[sx, sy]];
+    let count = 0;
+    while (stack.length && count < cap) {
+      const [cx, cy] = stack.pop();
+      const key = cx + "," + cy;
+      if (seen.has(key)) continue;
+      if (!inBounds(cx, cy) || occupied[idx(cx, cy)]) continue;
+      seen.add(key);
+      count++;
+      stack.push([cx + 1, cy], [cx - 1, cy], [cx, cy + 1], [cx, cy - 1]);
+    }
+    return count;
+  }
+
+  let best = null, bestScore = -Infinity;
+  for (const d of options) {
+    const dv = DIRS[d];
+    const nx = rider.x + dv.x, ny = rider.y + dv.y;
+    if (!inBounds(nx, ny) || occupied[idx(nx, ny)]) continue;
+    let score = freeSpace(nx, ny, 120);
+    const dist = Math.abs(nx - opp.x) + Math.abs(ny - opp.y);
+    score += Math.max(0, 18 - dist) * 0.4;
+    if (d === rider.dir) score += 2;
+    score += Math.random() * 1.5;
+    if (score > bestScore) { bestScore = score; best = d; }
+  }
+  if (best) rider.next = best;
+}
+
+function step() {
+  if (mode === "cpu") {
+    for (const r of riders) if (r.ai && r.alive) aiChoose(r);
+  }
+
+  for (const r of riders) {
+    if (r.next !== OPP[r.dir]) r.dir = r.next;
+  }
+
+  const moves = riders.map(r => {
+    const dv = DIRS[r.dir];
+    return { r, nx: r.x + dv.x, ny: r.y + dv.y };
+  });
+
+  const targets = {};
+  for (const m of moves) {
+    const k = m.nx + "," + m.ny;
+    targets[k] = (targets[k] || 0) + 1;
+  }
+
+  for (const m of moves) {
+    if (!m.r.alive) continue;
+    const hitWall = !inBounds(m.nx, m.ny);
+    const hitTrail = !hitWall && occupied[idx(m.nx, m.ny)] !== 0;
+    const headOn = targets[m.nx + "," + m.ny] > 1;
+    if (hitWall || hitTrail || headOn) {
+      m.r.alive = false;
+      spawnCrash(m.r.x, m.r.y, m.r.id);
+    }
+  }
+
+  for (const m of moves) {
+    if (!m.r.alive) continue;
+    m.r.x = m.nx; m.r.y = m.ny;
+    occupied[idx(m.nx, m.ny)] = m.r.id;
+    m.r.trail.push({ x: m.nx, y: m.ny });
+  }
+
+  if (riders.some(r => !r.alive)) endRound();
+}
+
+function endRound() {
+  Audio.stopHum();
+  Audio.stopMusic();
+  Audio.crash();
+
+  const alive = riders.filter(r => r.alive);
+  let msg, winnerId = null;
+  if (alive.length === 1) {
+    winnerId = alive[0].id;
+    scores[winnerId]++;
+    const name = winnerId === 1 ? "CYAN" : (mode === "cpu" ? "CPU" : "ORANGE");
+    msg = name + " WINS THE ROUND";
+  } else {
+    msg = "DOUBLE KO — DRAW";
+  }
+  updateHUD();
+  state = "roundover";
+
+  const matchOver = scores[1] >= WIN_SCORE || scores[2] >= WIN_SCORE;
+
+  if (matchOver) {
+    const champ = scores[1] >= WIN_SCORE ? 1 : 2;
+    const cn = champ === 1 ? "CYAN" : (mode === "cpu" ? "CPU" : "ORANGE");
+    setTimeout(() => Audio.fanfare(true), 350);
+    setTimeout(() => {
+      state = "menu";
+      showOverlay(
+        cn + " DOMINATES",
+        'Final score &nbsp;<span class="p1">' + scores[1] + '</span>&nbsp;—&nbsp;<span class="p2">' + scores[2] + '</span>. Grid cleared.',
+        "Choose a mode to derez again"
+      );
+    }, 1400);
+  } else {
+    setTimeout(() => {
+      round++;
+      updateHUD();
+      showOverlay(
+        msg,
+        'Score &nbsp;<span class="p1">' + scores[1] + '</span>&nbsp;—&nbsp;<span class="p2">' + scores[2] + '</span>. Next round is faster.',
+        'Press <kbd>Space</kbd> for round ' + round
+      );
+    }, 900);
+  }
+}
+
+// --- crash particles ---
+function spawnCrash(gx, gy, id) {
+  const px = gx * CELL + CELL / 2;
+  const py = gy * CELL + CELL / 2;
+  for (let i = 0; i < 34; i++) {
+    const a = Math.random() * Math.PI * 2;
+    const sp = 0.5 + Math.random() * 3.2;
+    particles.push({
+      x: px, y: py,
+      vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
+      life: 1, decay: 0.012 + Math.random() * 0.02,
+      col: COL[id].glow,
+    });
+  }
+}
+
+function updateParticles() {
+  for (const p of particles) {
+    p.x += p.vx; p.y += p.vy;
+    p.vx *= 0.97; p.vy *= 0.97;
+    p.life -= p.decay;
+  }
+  particles = particles.filter(p => p.life > 0);
+}
+
+// --- render ---
+function draw(now) {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  for (const r of riders || []) {
+    const c = COL[r.id];
+    ctx.shadowBlur = 8;
+    ctx.shadowColor = c.glow;
+    ctx.fillStyle = c.dim;
+    for (const seg of r.trail) ctx.fillRect(seg.x * CELL, seg.y * CELL, CELL, CELL);
+    ctx.shadowBlur = 0;
+  }
+
+  for (const r of riders || []) {
+    if (!r.alive && state !== "playing") continue;
+    const c = COL[r.id];
+    ctx.shadowBlur = 16;
+    ctx.shadowColor = c.glow;
+    ctx.fillStyle = c.core;
+    ctx.fillRect(r.x * CELL - 1, r.y * CELL - 1, CELL + 2, CELL + 2);
+    ctx.shadowBlur = 0;
+  }
+
+  for (const p of particles) {
+    ctx.globalAlpha = Math.max(0, p.life);
+    ctx.fillStyle = p.col;
+    ctx.shadowBlur = 10;
+    ctx.shadowColor = p.col;
+    const s = 3 * p.life + 1;
+    ctx.fillRect(p.x - s / 2, p.y - s / 2, s, s);
+  }
+  ctx.globalAlpha = 1;
+  ctx.shadowBlur = 0;
+
+  if (state === "countdown") {
+    const remain = countdownEnd - now;
+    const n = Math.ceil(remain / 800);
+    const label = n > 3 ? "GET READY" : (n > 0 ? String(n) : "GO");
+    const phase = 1 - ((remain % 800) / 800);
+    ctx.save();
+    ctx.globalAlpha = 0.9;
+    ctx.fillStyle = "#fff";
+    ctx.shadowColor = "#00f0ff";
+    ctx.shadowBlur = 30;
+    ctx.font = (n > 3 ? "bold 42px" : "bold 96px") + ' "Segoe UI", Arial, sans-serif';
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.translate(canvas.width / 2, canvas.height / 2);
+    const sc = 1 + phase * 0.15;
+    ctx.scale(sc, sc);
+    ctx.fillText(label, 0, 0);
+    ctx.restore();
+  }
+
+  if (state === "paused") {
+    ctx.save();
+    ctx.fillStyle = "rgba(2,8,12,.6)";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = "#fff";
+    ctx.shadowColor = "#00f0ff";
+    ctx.shadowBlur = 24;
+    ctx.font = 'bold 48px "Segoe UI", Arial, sans-serif';
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("PAUSED", canvas.width / 2, canvas.height / 2);
+    ctx.restore();
+  }
+}
+
+// --- main loop ---
+function loop(now) {
+  const dt = Math.min(0.05, (now - lastT) / 1000 || 0);
+  lastT = now;
+
+  if (state === "countdown") {
+    const remain = countdownEnd - now;
+    const n = Math.ceil(remain / 800);
+    if (n <= 3 && n >= 1 && n !== lastCountNum) { Audio.countdownTick(false); lastCountNum = n; }
+    if (now >= countdownEnd) {
+      state = "playing";
+      acc = 0;
+      Audio.countdownTick(true);
+      Audio.startHum();
+      Audio.setHumSpeed(baseSpeed);
+      Audio.startMusic(baseSpeed);
+      humStarted = true;
+    }
+  } else if (state === "playing") {
+    acc += dt;
+    const interval = 1 / baseSpeed;
+    while (acc >= interval) {
+      acc -= interval;
+      step();
+      if (state !== "playing") break;
+    }
+  }
+
+  updateParticles();
+  draw(now);
+  requestAnimationFrame(loop);
+}
+
+// --- input ---
+const P1KEYS = { w: "up", a: "left", s: "down", d: "right" };
+const P2KEYS = { ArrowUp: "up", ArrowLeft: "left", ArrowDown: "down", ArrowRight: "right" };
+
+function steer(rider, dir) {
+  if (dir && dir !== OPP[rider.dir] && rider.next !== dir) {
+    rider.next = dir;
+    Audio.turn();
+  }
+}
+
+function refreshAudioLabel() {
+  const m = Audio.isMuted();
+  el.audio.textContent = m ? "♪ Muted" : "♪ Sound On";
+  el.audio.classList.toggle("muted", m);
+}
+
+window.addEventListener("keydown", (e) => {
+  Audio.unlock();
+  const k = e.key;
+
+  if (k === " " || k === "Spacebar") {
+    if (state === "roundover") { beginRound(); e.preventDefault(); return; }
+  }
+  if (k === "p" || k === "P") {
+    if (state === "playing") {
+      state = "paused";
+      Audio.stopHum(); Audio.stopMusic();
+    } else if (state === "paused") {
+      state = "playing";
+      lastT = performance.now();
+      Audio.startHum(); Audio.setHumSpeed(baseSpeed); Audio.startMusic(baseSpeed);
+    }
+    return;
+  }
+  if (k === "m" || k === "M") {
+    Audio.toggleMute();
+    refreshAudioLabel();
+    return;
+  }
+
+  if (state !== "playing") return;
+
+  const lower = (k.length === 1) ? k.toLowerCase() : k;
+  if (P1KEYS[lower]) { steer(riders[0], P1KEYS[lower]); e.preventDefault(); }
+
+  if (P2KEYS[k]) {
+    // P2 in 2-player mode; in CPU mode arrows also drive P1 for comfort
+    steer(mode === "2p" ? riders[1] : riders[0], P2KEYS[k]);
+    e.preventDefault();
+  }
+});
+
+function begin(modeSel) { Audio.unlock(); startMatch(modeSel); }
+document.getElementById("btnSolo").addEventListener("click", () => begin("cpu"));
+document.getElementById("btn2p").addEventListener("click", () => begin("2p"));
+el.audio.addEventListener("click", () => { Audio.unlock(); Audio.toggleMute(); refreshAudioLabel(); });
+
+// boot
+requestAnimationFrame((t) => { lastT = t; loop(t); });
+
+})();
+</script>
+</body>
+</html>
